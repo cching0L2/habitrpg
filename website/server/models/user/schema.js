@@ -1,14 +1,17 @@
 import mongoose from 'mongoose';
-import shared from '../../../../common';
+import shared from '../../../common';
 import _ from 'lodash';
 import validator from 'validator';
 import { schema as TagSchema } from '../tag';
 import { schema as PushDeviceSchema } from '../pushDevice';
+import { schema as WebhookSchema } from '../webhook';
 import {
   schema as UserNotificationSchema,
 } from '../userNotification';
 
 const Schema = mongoose.Schema;
+
+const INVALID_DOMAINS = Object.freeze(['habitica.com', 'habitrpg.com']);
 
 // User schema definition
 let schema = new Schema({
@@ -22,10 +25,25 @@ let schema = new Schema({
     facebook: {type: Schema.Types.Mixed, default: () => {
       return {};
     }},
+    google: {type: Schema.Types.Mixed, default: () => {
+      return {};
+    }},
     local: {
       email: {
         type: String,
-        validate: [validator.isEmail, shared.i18n.t('invalidEmail')],
+        validate: [{
+          validator: validator.isEmail,
+          message: shared.i18n.t('invalidEmail'),
+        }, {
+          validator (email) {
+            let lowercaseEmail = email.toLowerCase();
+
+            return INVALID_DOMAINS.every((domain) => {
+              return !lowercaseEmail.endsWith(`@${domain}`);
+            });
+          },
+          message: shared.i18n.t('invalidEmailDomain', { domains: INVALID_DOMAINS.join(', ')}),
+        }],
       },
       username: {
         type: String,
@@ -178,6 +196,8 @@ let schema = new Schema({
         tavern: {type: Boolean, default: false},
         equipment: {type: Boolean, default: false},
         items: {type: Boolean, default: false},
+        mounts: {type: Boolean, default: false},
+        inbox: {type: Boolean, default: false},
       },
       ios: {
         addTask: {type: Boolean, default: false},
@@ -186,6 +206,7 @@ let schema = new Schema({
         filterTask: {type: Boolean, default: false},
         groupPets: {type: Boolean, default: false},
         inviteParty: {type: Boolean, default: false},
+        reorderTask: {type: Boolean, default: false},
       },
     },
     dropsEnabled: {type: Boolean, default: false},
@@ -391,7 +412,7 @@ let schema = new Schema({
     skin: {type: String, default: '915533'},
     shirt: {type: String, default: 'blue'},
     timezoneOffset: {type: Number, default: 0},
-    sound: {type: String, default: 'off', enum: ['off', 'danielTheBard', 'gokulTheme', 'luneFoxTheme', 'wattsTheme', 'rosstavoTheme']},
+    sound: {type: String, default: 'rosstavoTheme', enum: ['off', 'danielTheBard', 'gokulTheme', 'luneFoxTheme', 'wattsTheme', 'rosstavoTheme', 'dewinTheme']},
     chair: {type: String, default: 'none'},
     timezoneOffsetAtLastCron: Number,
     language: String,
@@ -518,6 +539,8 @@ let schema = new Schema({
     return {};
   }},
   pushDevices: [PushDeviceSchema],
+  _ABtest: {type: String},
+  webhooks: [WebhookSchema],
 }, {
   strict: true,
   minimize: false, // So empty objects are returned

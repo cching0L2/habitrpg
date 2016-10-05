@@ -1,14 +1,14 @@
 import {
   BadRequest,
   NotAuthorized,
-} from '../../../libs/api-v3/errors';
-import amzLib from '../../../libs/api-v3/amazonPayments';
+} from '../../../libs/errors';
+import amzLib from '../../../libs/amazonPayments';
 import {
   authWithHeaders,
   authWithUrl,
-} from '../../../middlewares/api-v3/auth';
-import shared from '../../../../../common';
-import payments from '../../../libs/api-v3/payments';
+} from '../../../middlewares/auth';
+import shared from '../../../../common';
+import payments from '../../../libs/payments';
 import moment from 'moment';
 import { model as Coupon } from '../../../models/coupon';
 import { model as User } from '../../../models/user';
@@ -19,7 +19,6 @@ let api = {};
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /amazon/verifyAccessToken Amazon Payments: verify access token
- * @apiVersion 3.0.0
  * @apiName AmazonVerifyAccessToken
  * @apiGroup Payments
  *
@@ -42,11 +41,10 @@ api.verifyAccessToken = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /amazon/createOrderReferenceId Amazon Payments: create order reference id
- * @apiVersion 3.0.0
  * @apiName AmazonCreateOrderReferenceId
  * @apiGroup Payments
  *
- * @apiSuccess {string} data.orderReferenceId The order reference id.
+ * @apiSuccess {String} data.orderReferenceId The order reference id.
  **/
 api.createOrderReferenceId = {
   method: 'POST',
@@ -72,11 +70,10 @@ api.createOrderReferenceId = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /amazon/checkout Amazon Payments: checkout
- * @apiVersion 3.0.0
  * @apiName AmazonCheckout
  * @apiGroup Payments
  *
- * @apiSuccess {object} data Empty object
+ * @apiSuccess {Object} data Empty object
  **/
 api.checkout = {
   method: 'POST',
@@ -131,7 +128,11 @@ api.checkout = {
 
     // execute payment
     let method = 'buyGems';
-    let data = { user, paymentMethod: 'Amazon Payments' };
+    let data = {
+      user,
+      paymentMethod: 'Amazon Payments',
+      headers: req.headers,
+    };
 
     if (gift) {
       if (gift.type === 'subscription') method = 'createSubscription';
@@ -149,11 +150,10 @@ api.checkout = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /amazon/subscribe Amazon Payments: subscribe
- * @apiVersion 3.0.0
  * @apiName AmazonSubscribe
  * @apiGroup Payments
  *
- * @apiSuccess {object} data Empty object
+ * @apiSuccess {Object} data Empty object
  **/
 api.subscribe = {
   method: 'POST',
@@ -212,6 +212,7 @@ api.subscribe = {
       customerId: billingAgreementId,
       paymentMethod: 'Amazon Payments',
       sub,
+      headers: req.headers,
     });
 
     res.respond(200);
@@ -221,7 +222,6 @@ api.subscribe = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {get} /amazon/subscribe/cancel Amazon Payments: subscribe cancel
- * @apiVersion 3.0.0
  * @apiName AmazonSubscribe
  * @apiGroup Payments
  **/
@@ -246,6 +246,7 @@ api.subscribeCancel = {
       user,
       nextBill: moment(user.purchased.plan.lastBillingDate).add({ days: subscriptionLength }),
       paymentMethod: 'Amazon Payments',
+      headers: req.headers,
     });
 
     if (req.query.noRedirect) {

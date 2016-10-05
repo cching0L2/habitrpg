@@ -57,11 +57,27 @@ describe('Post /groups/:groupId/invite', () => {
       });
     });
 
-    it('returns empty when uuids is empty', async () => {
+    it('returns an error when uuids and emails are empty', async () => {
+      await expect(inviter.post(`/groups/${group._id}/invite`, {
+        emails: [],
+        uuids: [],
+      }))
+      .to.eventually.be.rejected.and.eql({
+        code: 400,
+        error: 'BadRequest',
+        message: t('inviteMustNotBeEmpty'),
+      });
+    });
+
+    it('returns an error when uuids is empty and emails is not passed', async () => {
       await expect(inviter.post(`/groups/${group._id}/invite`, {
         uuids: [],
       }))
-      .to.eventually.be.empty;
+      .to.eventually.be.rejected.and.eql({
+        code: 400,
+        error: 'BadRequest',
+        message: t('inviteMissingUuid'),
+      });
     });
 
     it('returns an error when there are more than INVITES_LIMIT uuids', async () => {
@@ -159,11 +175,15 @@ describe('Post /groups/:groupId/invite', () => {
       });
     });
 
-    it('returns empty when emails is an empty array', async () => {
+    it('returns an error when emails is empty and uuids is not passed', async () => {
       await expect(inviter.post(`/groups/${group._id}/invite`, {
         emails: [],
       }))
-      .to.eventually.be.empty;
+      .to.eventually.be.rejected.and.eql({
+        code: 400,
+        error: 'BadRequest',
+        message: t('inviteMissingEmail'),
+      });
     });
 
     it('returns an error when there are more than INVITES_LIMIT emails', async () => {
@@ -327,11 +347,22 @@ describe('Post /groups/:groupId/invite', () => {
       });
     });
 
-    it('allow inviting a user to a party if he\'s partying solo', async () => {
+    it('allow inviting a user to a party if they are partying solo', async () => {
       let userToInvite = await generateUser();
       await userToInvite.post('/groups', { // add user to a party
         name: 'Another Test Party',
         type: 'party',
+      });
+
+      await inviter.post(`/groups/${party._id}/invite`, {
+        uuids: [userToInvite._id],
+      });
+      expect((await userToInvite.get('/user')).invitations.party.id).to.equal(party._id);
+    });
+
+    it('allow inviting a user if party id is not associated with a real party', async () => {
+      let userToInvite = await generateUser({
+        party: { _id: generateUUID() },
       });
 
       await inviter.post(`/groups/${party._id}/invite`, {

@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import Bluebird from 'bluebird';
-import { authWithHeaders } from '../../middlewares/api-v3/auth';
-import analytics from '../../libs/api-v3/analyticsService';
+import { authWithHeaders } from '../../middlewares/auth';
+import analytics from '../../libs/analyticsService';
 import {
   model as Group,
 } from '../../models/group';
@@ -10,13 +10,13 @@ import {
   NotFound,
   NotAuthorized,
   BadRequest,
-} from '../../libs/api-v3/errors';
+} from '../../libs/errors';
 import {
   getUserInfo,
   sendTxn as sendTxnEmail,
-} from '../../libs/api-v3/email';
-import common from '../../../../common';
-import sendPushNotification from '../../libs/api-v3/pushNotifications';
+} from '../../libs/email';
+import common from '../../../common';
+import { sendNotification as sendPushNotification } from '../../libs/pushNotifications';
 
 const questScrolls = common.content.quests;
 
@@ -26,18 +26,30 @@ function canStartQuestAutomatically (group)  {
   return _.every(group.quest.members, _.isBoolean);
 }
 
+/**
+ * @apiDefine QuestNotFound
+ * @apiError (404) {NotFound} QuestNotFound The specified quest could not be found.
+ */
+
+/**
+ * @apiDefine QuestLeader Quest Leader
+ * The quest leader can use this route.
+ */
+
 let api = {};
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/invite Invite users to a quest
- * @apiVersion 3.0.0
  * @apiName InviteToQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
- * @apiParam {string} questKey
+ * @apiParam {String} groupId The group _id (or 'party')
+ * @apiParam {String} questKey
  *
  * @apiSuccess {Object} data Quest object
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.inviteToQuest = {
   method: 'POST',
@@ -135,19 +147,22 @@ api.inviteToQuest = {
       gaLabel: 'accept',
       questName: questKey,
       uuid: user._id,
+      headers: req.headers,
     });
   },
 };
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/accept Accept a pending quest
- * @apiVersion 3.0.0
  * @apiName AcceptQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.acceptQuest = {
   method: 'POST',
@@ -161,6 +176,9 @@ api.acceptQuest = {
     let validationErrors = req.validationErrors();
     if (validationErrors) throw validationErrors;
 
+    user.party.quest.RSVPNeeded = false;
+    await user.save();
+
     let group = await Group.getGroup({user, groupId: req.params.groupId, fields: 'type quest'});
 
     if (!group) throw new NotFound(res.t('groupNotFound'));
@@ -171,16 +189,12 @@ api.acceptQuest = {
 
     group.markModified('quest');
     group.quest.members[user._id] = true;
-    user.party.quest.RSVPNeeded = false;
 
     if (canStartQuestAutomatically(group)) {
       await group.startQuest(user);
     }
 
-    let [savedGroup] = await Bluebird.all([
-      group.save(),
-      user.save(),
-    ]);
+    let savedGroup = await group.save();
 
     res.respond(200, savedGroup.quest);
 
@@ -192,19 +206,22 @@ api.acceptQuest = {
       gaLabel: 'accept',
       questName: group.quest.key,
       uuid: user._id,
+      headers: req.headers,
     });
   },
 };
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/reject Reject a quest
- * @apiVersion 3.0.0
  * @apiName RejectQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.rejectQuest = {
   method: 'POST',
@@ -218,6 +235,10 @@ api.rejectQuest = {
     let validationErrors = req.validationErrors();
     if (validationErrors) throw validationErrors;
 
+    user.party.quest = Group.cleanQuestProgress();
+    user.markModified('party.quest');
+    await user.save();
+
     let group = await Group.getGroup({user, groupId: req.params.groupId, fields: 'type quest'});
     if (!group) throw new NotFound(res.t('groupNotFound'));
     if (group.type !== 'party') throw new NotAuthorized(res.t('guildQuestsNotSupported'));
@@ -229,17 +250,11 @@ api.rejectQuest = {
     group.quest.members[user._id] = false;
     group.markModified('quest.members');
 
-    user.party.quest = Group.cleanQuestProgress();
-    user.markModified('party.quest');
-
     if (canStartQuestAutomatically(group)) {
       await group.startQuest(user);
     }
 
-    let [savedGroup] = await Bluebird.all([
-      group.save(),
-      user.save(),
-    ]);
+    let savedGroup = await group.save();
 
     res.respond(200, savedGroup.quest);
 
@@ -250,6 +265,7 @@ api.rejectQuest = {
       gaLabel: 'reject',
       questName: group.quest.key,
       uuid: user._id,
+      headers: req.headers,
     });
   },
 };
@@ -257,13 +273,18 @@ api.rejectQuest = {
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/force-start Force-start a pending quest
- * @apiVersion 3.0.0
  * @apiName ForceQuestStart
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiPermission QuestLeader
+ * @apiPermission GroupLeader
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.forceStart = {
   method: 'POST',
@@ -303,19 +324,25 @@ api.forceStart = {
       gaLabel: 'force-start',
       questName: group.quest.key,
       uuid: user._id,
+      headers: req.headers,
     });
   },
 };
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/cancel Cancel a quest that is not active
- * @apiVersion 3.0.0
  * @apiName CancelQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiPermission QuestLeader
+ * @apiPermission GroupLeader
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.cancelQuest = {
   method: 'POST',
@@ -358,13 +385,18 @@ api.cancelQuest = {
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/abort Abort the current quest
- * @apiVersion 3.0.0
  * @apiName AbortQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiPermission QuestLeader
+ * @apiPermission GroupLeader
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.abortQuest = {
   method: 'POST',
@@ -411,13 +443,15 @@ api.abortQuest = {
 
 /**
  * @api {post} /api/v3/groups/:groupId/quests/leave Leave the active quest
- * @apiVersion 3.0.0
  * @apiName LeaveQuest
- * @apiGroup Group
+ * @apiGroup Quest
  *
- * @apiParam {string} groupId The group _id (or 'party')
+ * @apiParam {String} groupId The group _id (or 'party')
  *
  * @apiSuccess {Object} data Quest Object
+ *
+ * @apiUse GroupNotFound
+ * @apiUse QuestNotFound
  */
 api.leaveQuest = {
   method: 'POST',

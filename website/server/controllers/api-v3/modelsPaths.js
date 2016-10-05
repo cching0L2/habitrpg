@@ -8,13 +8,12 @@ let allModels = ['user', 'tag', 'challenge', 'group'].concat(tasksModels);
 /**
  * @api {get} /api/v3/models/:model/paths Get all paths for the specified model
  * @apiDescription Doesn't require authentication
- * @apiVersion 3.0.0
  * @apiName GetUserModelPaths
  * @apiGroup Meta
  *
- * @apiParam {string="user","group","challenge","tag","habit","daily","todo","reward"} model The name of the model
+ * @apiParam {String="user","group","challenge","tag","habit","daily","todo","reward"} model The name of the model
  *
- * @apiSuccess {object} data A key-value object made of fieldPath: fieldType (like {'field.nested': Boolean})
+ * @apiSuccess {Object} data A key-value object made of fieldPath: fieldType (like {'field.nested': Boolean})
  */
 api.getModelPaths = {
   method: 'GET',

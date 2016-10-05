@@ -1,17 +1,21 @@
-import { authWithHeaders } from '../../middlewares/api-v3/auth';
+import { authWithHeaders } from '../../middlewares/auth';
 import { model as Tag } from '../../models/tag';
 import * as Tasks from '../../models/task';
 import {
   NotFound,
-} from '../../libs/api-v3/errors';
+} from '../../libs/errors';
 import _ from 'lodash';
-import { removeFromArray } from '../../libs/api-v3/collectionManipulators';
+import { removeFromArray } from '../../libs/collectionManipulators';
+
+/**
+ * @apiDefine TagNotFound
+ * @apiError (404) {NotFound} TagNotFound The specified tag could not be found.
+ */
 
 let api = {};
 
 /**
  * @api {post} /api/v3/tags Create a new tag
- * @apiVersion 3.0.0
  * @apiName CreateTag
  * @apiGroup Tag
  *
@@ -35,7 +39,6 @@ api.createTag = {
 
 /**
  * @api {get} /api/v3/tags Get a user's tags
- * @apiVersion 3.0.0
  * @apiName GetTags
  * @apiGroup Tag
  *
@@ -53,13 +56,14 @@ api.getTags = {
 
 /**
  * @api {get} /api/v3/tags/:tagId Get a tag given its id
- * @apiVersion 3.0.0
  * @apiName GetTag
  * @apiGroup Tag
  *
  * @apiParam {UUID} tagId The tag _id
  *
- * @apiSuccess {object} data The tag object
+ * @apiSuccess {Object} data The tag object
+ *
+ * @apiUse TagNotFound
  */
 api.getTag = {
   method: 'GET',
@@ -81,13 +85,14 @@ api.getTag = {
 
 /**
  * @api {put} /api/v3/tag/:tagId Update a tag
- * @apiVersion 3.0.0
  * @apiName UpdateTag
  * @apiGroup Tag
  *
  * @apiParam {UUID} tagId The tag _id
  *
- * @apiSuccess {object} data The updated tag
+ * @apiSuccess {Object} data The updated tag
+ *
+ * @apiUse TagNotFound
  */
 api.updateTag = {
   method: 'PUT',
@@ -115,14 +120,15 @@ api.updateTag = {
 
 /**
  * @api {post} /api/v3/reorder-tags Reorder a tag
- * @apiVersion 3.0.0
  * @apiName ReorderTags
  * @apiGroup Tag
  *
- * @apiParam {tagId} UUID Id of the tag to move
- * @apiParam {to} number Position the tag is moving to
+ * @apiParam {UUID} tagId Id of the tag to move
+ * @apiParam {Number} to Position the tag is moving to
  *
- * @apiSuccess {object} data An empty object
+ * @apiSuccess {Object} data An empty object
+ *
+ * @apiUse TagNotFound
  */
 api.reorderTags = {
   method: 'POST',
@@ -150,13 +156,14 @@ api.reorderTags = {
 
 /**
  * @api {delete} /api/v3/tag/:tagId Delete a user tag given its id
- * @apiVersion 3.0.0
  * @apiName DeleteTag
  * @apiGroup Tag
  *
  * @apiParam {UUID} tagId The tag _id
  *
- * @apiSuccess {object} data An empty object
+ * @apiSuccess {Object} data An empty object
+ *
+ * @apiUse TagNotFound
  */
 api.deleteTag = {
   method: 'DELETE',

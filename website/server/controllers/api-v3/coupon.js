@@ -1,9 +1,9 @@
-import csvStringify from '../../libs/api-v3/csvStringify';
+import csvStringify from '../../libs/csvStringify';
 import {
   authWithHeaders,
   authWithSession,
-} from '../../middlewares/api-v3/auth';
-import { ensureSudo } from '../../middlewares/api-v3/ensureAccessRight';
+} from '../../middlewares/auth';
+import { ensureSudo } from '../../middlewares/ensureAccessRight';
 import { model as Coupon } from '../../models/coupon';
 import _ from 'lodash';
 import couponCode from 'coupon-code';
@@ -13,11 +13,10 @@ let api = {};
 /**
  * @api {get} /api/v3/coupons Get coupons
  * @apiDescription Sudo users only
- * @apiVersion 3.0.0
  * @apiName GetCoupons
  * @apiGroup Coupon
  *
- * @apiSuccess {string} Coupons in CSV format
+ * @apiSuccess {String} Coupons in CSV format
  */
 api.getCoupons = {
   method: 'GET',
@@ -42,14 +41,13 @@ api.getCoupons = {
 /**
  * @api {post} /api/v3/coupons/generate/:event Generate coupons for an event
  * @apiDescription Sudo users only
- * @apiVersion 3.0.0
  * @apiName GenerateCoupons
  * @apiGroup Coupon
  *
- * @apiParam {string} event The event for which the coupon should be generated
- * @apiParam {number} count Query parameter to specify the number of coupon codes to generate
+ * @apiParam {String} event The event for which the coupon should be generated
+ * @apiParam {Number} count Query parameter to specify the number of coupon codes to generate
  *
- * @apiSuccess {array} data Generated coupons
+ * @apiSuccess {Array} data Generated coupons
  */
 api.generateCoupons = {
   method: 'POST',
@@ -68,14 +66,13 @@ api.generateCoupons = {
 };
 
 /**
- * @api {post} /api/v3/user/coupon/:code Enter coupon code
- * @apiVersion 3.0.0
+ * @api {post} /api/v3/coupons/enter/:code Enter coupon code
  * @apiName EnterCouponCode
  * @apiGroup Coupon
  *
- * @apiParam {string} code The coupon code to apply
+ * @apiParam {String} code The coupon code to apply
  *
- * @apiSuccess {object} data User object
+ * @apiSuccess {Object} data User object
  */
 api.enterCouponCode = {
   method: 'POST',
@@ -96,11 +93,10 @@ api.enterCouponCode = {
 
 /**
  * @api {post} /api/v3/coupons/validate/:code Validate a coupon code
- * @apiVersion 3.0.0
  * @apiName ValidateCoupon
  * @apiGroup Coupon
  *
- * @apiSuccess {boolean} data.valid True or false
+ * @apiSuccess {Boolean} data.valid True or false
  */
 api.validateCoupon = {
   method: 'POST',

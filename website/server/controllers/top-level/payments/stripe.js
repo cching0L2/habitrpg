@@ -1,18 +1,18 @@
 import stripeModule from 'stripe';
-import shared from '../../../../../common';
+import shared from '../../../../common';
 import {
   BadRequest,
   NotAuthorized,
-} from '../../../libs/api-v3/errors';
+} from '../../../libs/errors';
 import { model as Coupon } from '../../../models/coupon';
-import payments from '../../../libs/api-v3/payments';
+import payments from '../../../libs/payments';
 import nconf from 'nconf';
 import { model as User } from '../../../models/user';
 import cc from 'coupon-code';
 import {
   authWithHeaders,
   authWithUrl,
-} from '../../../middlewares/api-v3/auth';
+} from '../../../middlewares/auth';
 
 const stripe = stripeModule(nconf.get('STRIPE_API_KEY'));
 
@@ -21,15 +21,14 @@ let api = {};
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /stripe/checkout Stripe checkout
- * @apiVersion 3.0.0
  * @apiName StripeCheckout
  * @apiGroup Payments
  *
- * @apiParam {string} id Body parameter - The token
- * @apiParam {string} email Body parameter - the customer email
- * @apiParam {string} gift Query parameter - stringified json object, gift
- * @apiParam {string} sub Query parameter - subscription, possible values are: basic_earned, basic_3mo, basic_6mo, google_6mo, basic_12mo
- * @apiParam {string} coupon Query parameter - coupon for the matching subscription, required only for certain subscriptions
+ * @apiParam {String} id Body parameter - The token
+ * @apiParam {String} email Body parameter - the customer email
+ * @apiParam {String} gift Query parameter - stringified json object, gift
+ * @apiParam {String} sub Query parameter - subscription, possible values are: basic_earned, basic_3mo, basic_6mo, google_6mo, basic_12mo
+ * @apiParam {String} coupon Query parameter - coupon for the matching subscription, required only for certain subscriptions
  *
  * @apiSuccess {Object} data Empty object
  **/
@@ -84,6 +83,7 @@ api.checkout = {
         customerId: response.id,
         paymentMethod: 'Stripe',
         sub,
+        headers: req.headers,
       });
     } else {
       let method = 'buyGems';
@@ -111,11 +111,10 @@ api.checkout = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {post} /stripe/subscribe/edit Edit Stripe subscription
- * @apiVersion 3.0.0
  * @apiName StripeSubscribeEdit
  * @apiGroup Payments
  *
- * @apiParam {string} id Body parameter - The token
+ * @apiParam {String} id Body parameter - The token
  *
  * @apiSuccess {Object} data Empty object
  **/
@@ -142,7 +141,6 @@ api.subscribeEdit = {
 /**
  * @apiIgnore Payments are considered part of the private API
  * @api {get} /stripe/subscribe/cancel Cancel Stripe subscription
- * @apiVersion 3.0.0
  * @apiName StripeSubscribeCancel
  * @apiGroup Payments
  **/

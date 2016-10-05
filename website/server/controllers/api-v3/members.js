@@ -1,4 +1,4 @@
-import { authWithHeaders } from '../../middlewares/api-v3/auth';
+import { authWithHeaders } from '../../middlewares/auth';
 import {
   model as User,
   publicFields as memberFields,
@@ -9,26 +9,27 @@ import { model as Challenge } from '../../models/challenge';
 import {
   NotFound,
   NotAuthorized,
-} from '../../libs/api-v3/errors';
+} from '../../libs/errors';
 import * as Tasks from '../../models/task';
 import {
   getUserInfo,
   sendTxn as sendTxnEmail,
-} from '../../libs/api-v3/email';
+} from '../../libs/email';
 import Bluebird from 'bluebird';
-import sendPushNotification from '../../libs/api-v3/pushNotifications';
+import { sendNotification as sendPushNotification } from '../../libs/pushNotifications';
 
 let api = {};
 
 /**
  * @api {get} /api/v3/members/:memberId Get a member profile
- * @apiVersion 3.0.0
  * @apiName GetMember
  * @apiGroup Member
  *
  * @apiParam {UUID} memberId The member's id
  *
- * @apiSuccess {object} data The member object
+ * @apiSuccess {Object} data The member object
+ *
+ * @apiUse UserNotFound
  */
 api.getMember = {
   method: 'GET',
@@ -50,7 +51,10 @@ api.getMember = {
     if (!member) throw new NotFound(res.t('userWithIDNotFound', {userId: memberId}));
 
     // manually call toJSON with minimize: true so empty paths aren't returned
-    res.respond(200, member.toJSON({minimize: true}));
+    let memberToJSON = member.toJSON({minimize: true});
+    member.addComputedStatsToJSONObj(memberToJSON.stats);
+
+    res.respond(200, memberToJSON);
   },
 };
 
@@ -100,6 +104,7 @@ function _getMembersForItem (type) {
 
     let query = {};
     let fields = nameFields;
+    let addComputedStats = false; // add computes stats to the member info when items and stats are available
 
     if (type === 'challenge-members') {
       query.challenges = challenge._id;
@@ -111,6 +116,7 @@ function _getMembersForItem (type) {
 
         if (req.query.includeAllPublicFields === 'true') {
           fields = memberFields;
+          addComputedStats = true;
         }
       }
     } else if (type === 'group-invites') {
@@ -138,22 +144,29 @@ function _getMembersForItem (type) {
       .exec();
 
     // manually call toJSON with minimize: true so empty paths aren't returned
-    res.respond(200, members.map(member => member.toJSON({minimize: true})));
+    let membersToJSON = members.map(member => {
+      let memberToJSON = member.toJSON({minimize: true});
+      if (addComputedStats) member.addComputedStatsToJSONObj(memberToJSON.stats);
+
+      return memberToJSON;
+    });
+    res.respond(200, membersToJSON);
   };
 }
 
 /**
  * @api {get} /api/v3/groups/:groupId/members Get members for a group
  * @apiDescription With a limit of 30 member per request. To get all members run requests against this routes (updating the lastId query parameter) until you get less than 30 results.
- * @apiVersion 3.0.0
  * @apiName GetMembersForGroup
  * @apiGroup Member
  *
  * @apiParam {UUID} groupId The group id
  * @apiParam {UUID} lastId Query parameter to specify the last member returned in a previous request to this route and get the next batch of results
- * @apiParam {boolean} includeAllPublicFields Query parameter available only when fetching a party. If === `true` then all public fields for members will be returned (liek when making a request for a single member)
+ * @apiParam {boolean} includeAllPublicFields Query parameter available only when fetching a party. If === `true` then all public fields for members will be returned (like when making a request for a single member)
  *
  * @apiSuccess {array} data An array of members, sorted by _id
+ * @apiUse ChallengeNotFound
+ * @apiUse GroupNotFound
  */
 api.getMembersForGroup = {
   method: 'GET',
@@ -165,7 +178,6 @@ api.getMembersForGroup = {
 /**
  * @api {get} /api/v3/groups/:groupId/invites Get invites for a group
  * @apiDescription With a limit of 30 member per request. To get all invites run requests against this routes (updating the lastId query parameter) until you get less than 30 results.
- * @apiVersion 3.0.0
  * @apiName GetInvitesForGroup
  * @apiGroup Member
  *
@@ -173,6 +185,9 @@ api.getMembersForGroup = {
  * @apiParam {UUID} lastId Query parameter to specify the last invite returned in a previous request to this route and get the next batch of results
  *
  * @apiSuccess {array} data An array of invites, sorted by _id
+ *
+ * @apiUse ChallengeNotFound
+ * @apiUse GroupNotFound
  */
 api.getInvitesForGroup = {
   method: 'GET',
@@ -188,15 +203,17 @@ api.getInvitesForGroup = {
  * BETA You can also use ?includeAllMembers=true. This option is currently in BETA and may be removed in future.
  * Its use is discouraged and its performaces are not optimized especially for large challenges.
  *
- * @apiVersion 3.0.0
  * @apiName GetMembersForChallenge
  * @apiGroup Member
  *
  * @apiParam {UUID} challengeId The challenge id
  * @apiParam {UUID} lastId Query parameter to specify the last member returned in a previous request to this route and get the next batch of results
- * @apiParam {string} includeAllMembers BETA Query parameter - If 'true' all challenge members are returned
+ * @apiParam {String} includeAllMembers BETA Query parameter - If 'true' all challenge members are returned
 
  * @apiSuccess {array} data An array of members, sorted by _id
+ *
+ * @apiUse ChallengeNotFound
+ * @apiUse GroupNotFound
  */
 api.getMembersForChallenge = {
   method: 'GET',
@@ -207,14 +224,16 @@ api.getMembersForChallenge = {
 
 /**
  * @api {get} /api/v3/challenges/:challengeId/members/:memberId Get a challenge member progress
- * @apiVersion 3.0.0
  * @apiName GetChallengeMemberProgress
  * @apiGroup Member
  *
  * @apiParam {UUID} challengeId The challenge _id
  * @apiParam {UUID} member The member _id
  *
- * @apiSuccess {object} data Return an object with member _id, profile.name and a tasks object with the challenge tasks for the member
+ * @apiSuccess {Object} data Return an object with member _id, profile.name and a tasks object with the challenge tasks for the member
+ *
+ * @apiUse ChallengeNotFound
+ * @apiUse UserNotFound
  */
 api.getChallengeMemberProgress = {
   method: 'GET',
@@ -260,7 +279,6 @@ api.getChallengeMemberProgress = {
 
 /**
  * @api {posts} /api/v3/members/send-private-message Send a private message to a member
- * @apiVersion 3.0.0
  * @apiName SendPrivateMessage
  * @apiGroup Member
  *
@@ -268,6 +286,8 @@ api.getChallengeMemberProgress = {
  * @apiParam {UUID} toUserId Body parameter - The user to contact
  *
  * @apiSuccess {Object} data An empty Object
+ *
+ * @apiUse UserNotFound
  */
 api.sendPrivateMessage = {
   method: 'POST',
@@ -321,7 +341,6 @@ api.sendPrivateMessage = {
 
 /**
  * @api {posts} /api/v3/members/transfer-gems Send a gem gift to a member
- * @apiVersion 3.0.0
  * @apiName TransferGems
  * @apiGroup Member
  *
@@ -330,6 +349,8 @@ api.sendPrivateMessage = {
  * @apiParam {Integer} gemAmount Body parameter The number of gems to send
  *
  * @apiSuccess {Object} data An empty Object
+ *
+ * @apiUse UserNotFound
  */
 api.transferGems = {
   method: 'POST',
